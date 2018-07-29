@@ -434,23 +434,33 @@ loonGrob.l_layer_oval <- function(target, name = NULL, gp = NULL, vp = NULL) {
 loonGrob.l_layer_text <- function(target, name = NULL, gp = NULL, vp = NULL) {
     
     states <- get_layer_states(target)
-    justify <- states$anchor[[1]]
-    
+    # anchor <- states$anchor[[1]]
+    adjustedCoords <- anchor2adjustedCoords(                
+        text = states$text,
+        angle = states$angle,
+        anchor = states$anchor,
+        just = states$justify
+    )
+
     if(length(states$x)!=0  & length(states$y)!=0) {
         gTree(
             children = gList(
                 textGrob(
-                    label = states$text, x = states$x, y = states$y,
+                    label = states$text, 
+                    # x = states$x, 
+                    # y = states$y, 
+                    # just = anchor,
+                    x = states$x + adjustedCoords[1], 
+                    y = states$y + adjustedCoords[2], 
+                    just = states$justify,
                     rot = states$angle,
-                    hjust = justify[1],
-                    vjust = justify[2],
                     gp=gpar(fontsize= as_r_text_size(states$size), 
                             col=states$color),
                     name = "l_layer_text"
                 )
             ),
             name = name, gp = gp, vp = vp
-            )
+        )
     } else {
         grob(name = name, gp = gp, vp = vp)
     }     
@@ -504,20 +514,26 @@ loonGrob.l_layer_texts <- function(target, name = NULL, gp = NULL, vp = NULL) {
         size  <- as_r_text_size(states$size[active])
         angle  <- states$angle[active]
         anchor  <- states$anchor[active]
-        justify  <- states$anchor[active]
+        justify  <- states$justify[active]
+        
         # rotation  <- states$rot[active]
         # justification  <- states$just[active]
         color <- states$color[active]
         textGrobs <- lapply(seq_along(x), 
                             function(i) {
+                                adjustedCoords <- anchor2adjustedCoords(                
+                                    text = text[i],
+                                    angle = angle[i],
+                                    anchor = anchor[i],
+                                    just = justify[i]
+                                )
                                 textGrob(
                                     label = text[i],
-                                    x = x[i], 
-                                    y = y[i],
+                                    x = x[i] + adjustedCoords[1], 
+                                    y = y[i] + adjustedCoords[2],
                                     rot = angle[i],
-                                    # just = anchor[i],
-                                    hjust = justify[[i]][1],
-                                    vjust = justify[[i]][2],
+                                    # just = anchor[[i]],
+                                    just = justify[i],
                                     gp=gpar(fontsize= size[i], col=color[i])
                                 )
                             }
@@ -855,41 +871,32 @@ get_layer_states <- function(target, omit = NULL) {
     states_info <- l_info_states(obj_states)
     state_names <- setdiff(names(states_info), c(omit, cartesian_model_widget_states))
     
-    # states <- setNames(lapply(state_names, 
-    #                           function(state) l_cget(target, state)), 
-    #                    state_names)
-    states <- setNames(lapply(state_names, 
-                              function(state) {
-                                  l_cget.state <- l_cget(target, state)
-                                  switch(
-                                      state,
-                                      "anchor" = {
-                                          lapply(l_cget.state, function(l){
-                                              switch(l, 
-                                                     "center" = c(0.5, 0.5), 
-                                                     "n" = c(0.5, 1), 
-                                                     "ne" = c(1, 1), 
-                                                     "e" = c(1, 0.5), 
-                                                     "se" = c(1, 0), 
-                                                     "s" = c(0.5, 0), 
-                                                     "sw" = c(0, 0),
-                                                     "w" = c(0, 0.5), 
-                                                     "nw" = c(0, 1))
-                                          })
-                                      },
-                                      "justify" = {
-                                          lapply(l_cget.state, function(l){
-                                              switch(l, 
-                                                     "left" = c(1, 0.5), 
-                                                     "center" = c(0.5, 0.5), 
-                                                     "right" = c(0, 0.5)
-                                              )
-                                          }) 
-                                      },
-                                      l_cget.state
-                                  )
-                              }), 
+    states <- setNames(lapply(state_names,
+                              function(state) l_cget(target, state)),
                        state_names)
+    # states <- setNames(lapply(state_names, 
+    #                           function(state) {
+    #                               l_cget.state <- l_cget(target, state)
+    #                               switch(
+    #                                   state,
+    #                                   "anchor" = {
+    #                                       lapply(l_cget.state, function(l){
+    #                                           switch(l, 
+    #                                                  "center" = c("center", "center"), 
+    #                                                  "n" = c("center", "top"), 
+    #                                                  "ne" = c("right", "top"), 
+    #                                                  "e" = c("right", "center"), 
+    #                                                  "se" = c("right", "bottom"), 
+    #                                                  "s" = c("center", "bottom"), 
+    #                                                  "sw" = c("left", "bottom"),
+    #                                                  "w" = c("left", "center"), 
+    #                                                  "nw" = c("left", "top"))
+    #                                       })
+    #                                   },
+    #                                   l_cget.state
+    #                               )
+    #                           }), 
+    #                    state_names)
 
     # Add Coordinates
     if (!is(layer, "l_layer_group")) {
@@ -938,4 +945,72 @@ get_model_display_order <- function(widget) {
             i + 1
         }
     }
+}
+
+
+anchor2adjustedCoords <-  function(text, angle, anchor, just){
+    textWidth <- stringWidth(text)
+    textHeight <- stringHeight(text)
+    angle <- angle * pi / 180
+    
+    adjustedCoords <- switch(anchor,
+                             "center" = unit(c(0, 0), units = "mm"),
+                             "n" = {
+                                 x <- 1/2 * sin(angle) * textHeight
+                                 y <- -1/2 * cos(angle) * textHeight
+                                 unit.c(x, y)
+                             },
+                             "e" = {
+                                 x <- -1/2 * cos(angle) * textWidth
+                                 y <- -1/2 * sin(angle) * textWidth
+                                 unit.c(x, y)
+                             },
+                             "s" = {
+                                 x <- - 1/2 * sin(angle) * textHeight
+                                 y <- 1/2 * cos(angle) * textHeight
+                                 unit.c(x, y)
+                             },
+                             "w" = {
+                                 x <- 1/2 * cos(angle) * textWidth
+                                 y <- 1/2 * sin(angle) * textWidth
+                                 unit.c(x, y)
+                             },
+                             "sw" = {
+                                 x <- - 1/2 * sin(angle) * textHeight + 
+                                     1/2 * cos(angle) * textWidth
+                                 y <- 1/2 * cos(angle) * textHeight + 
+                                     1/2 * sin(angle) * textWidth
+                                 unit.c(x, y)
+                             },           
+                             "nw" = {
+                                 x <- 1/2 * sin(angle) * textHeight + 
+                                     1/2 * cos(angle) * textWidth
+                                 y <- -1/2 * cos(angle) * textHeight + 
+                                     1/2 * sin(angle) * textWidth
+                                 unit.c(x, y) 
+                             },
+                             "ne" =  {
+                                 x <-  1/2 * sin(angle) * textHeight + 
+                                     (-1/2) * cos(angle) * textWidth
+                                 y <- -1/2 * cos(angle) * textHeight +
+                                     (-1/2) * sin(angle) * textWidth
+                                 unit.c(x,y)
+                             },
+                             "se" = {
+                                 x <- - 1/2 * sin(angle) * textHeight +
+                                     (-1/2) * cos(angle) * textWidth
+                                 y <- 1/2 * cos(angle) * textHeight +
+                                     (-1/2) * sin(angle) * textWidth
+                                 unit.c(x ,y)
+                             }
+    )
+    # just can only be "left", "right" and "center"
+    if(just == "left") {
+        adjustedCoords[1] <- adjustedCoords[1] - 1/2 * cos(angle) * textWidth
+        adjustedCoords[2] <- adjustedCoords[2] - 1/2 * sin(angle) * textWidth
+    } else if(just == "right") {
+        adjustedCoords[1] <- adjustedCoords[1] + 1/2 * cos(angle) * textWidth
+        adjustedCoords[2] <- adjustedCoords[2] + 1/2 * sin(angle) * textWidth
+    }
+    adjustedCoords
 }
