@@ -434,7 +434,6 @@ loonGrob.l_layer_oval <- function(target, name = NULL, gp = NULL, vp = NULL) {
 loonGrob.l_layer_text <- function(target, name = NULL, gp = NULL, vp = NULL) {
     
     states <- get_layer_states(target)
-    # anchor <- states$anchor[[1]]
     adjustedCoords <- anchor2adjustedCoords(                
         text = states$text,
         angle = states$angle,
@@ -447,9 +446,6 @@ loonGrob.l_layer_text <- function(target, name = NULL, gp = NULL, vp = NULL) {
             children = gList(
                 textGrob(
                     label = states$text, 
-                    # x = states$x, 
-                    # y = states$y, 
-                    # just = anchor,
                     x = states$x + adjustedCoords[1], 
                     y = states$y + adjustedCoords[2], 
                     just = states$justify,
@@ -516,8 +512,6 @@ loonGrob.l_layer_texts <- function(target, name = NULL, gp = NULL, vp = NULL) {
         anchor  <- states$anchor[active]
         justify  <- states$justify[active]
         
-        # rotation  <- states$rot[active]
-        # justification  <- states$just[active]
         color <- states$color[active]
         textGrobs <- lapply(seq_along(x), 
                             function(i) {
@@ -874,29 +868,6 @@ get_layer_states <- function(target, omit = NULL) {
     states <- setNames(lapply(state_names,
                               function(state) l_cget(target, state)),
                        state_names)
-    # states <- setNames(lapply(state_names, 
-    #                           function(state) {
-    #                               l_cget.state <- l_cget(target, state)
-    #                               switch(
-    #                                   state,
-    #                                   "anchor" = {
-    #                                       lapply(l_cget.state, function(l){
-    #                                           switch(l, 
-    #                                                  "center" = c("center", "center"), 
-    #                                                  "n" = c("center", "top"), 
-    #                                                  "ne" = c("right", "top"), 
-    #                                                  "e" = c("right", "center"), 
-    #                                                  "se" = c("right", "bottom"), 
-    #                                                  "s" = c("center", "bottom"), 
-    #                                                  "sw" = c("left", "bottom"),
-    #                                                  "w" = c("left", "center"), 
-    #                                                  "nw" = c("left", "top"))
-    #                                       })
-    #                                   },
-    #                                   l_cget.state
-    #                               )
-    #                           }), 
-    #                    state_names)
 
     # Add Coordinates
     if (!is(layer, "l_layer_group")) {
