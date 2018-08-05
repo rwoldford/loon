@@ -5,6 +5,8 @@
 #'   widgets
 #'   
 #' @param data a data.frame with numerical data to create the scatterplot matrix
+#' @param showHistoram show histograms of each varible or not. Default is FALSE
+#' @param showSerialAxes show serialAxes or not. Default is FALSE
 #' @template param_parent
 #' @param ... named arguments to modify the scatterplot states
 #' 
@@ -17,10 +19,9 @@
 #' @examples
 #' p <- l_pairs(iris[,-5], color=iris$Species)
 
-l_pairs <- function(data, parent=NULL, ...) {
+l_pairs <- function(data, showHistoram = FALSE, showSerialAxes = FALSE, parent=NULL, ...) {
 
     args <- list(...)
-    
     if(!identical(class(data), "data.frame")) { # use of identical to deal with tibbles
         data <- as.data.frame(data)
     }
@@ -42,7 +43,6 @@ l_pairs <- function(data, parent=NULL, ...) {
     args[['showLabels']] <- FALSE
     args[['showScales']] <- FALSE
     args[['swapAxes']] <- FALSE
-    
     
     new.toplevel <- FALSE
     if(is.null(parent)) {
@@ -75,7 +75,81 @@ l_pairs <- function(data, parent=NULL, ...) {
     ##  1  1  1  2  2  3
     ##  2  3  4  3  4  4
     
-    plots <- vector(mode="list", dim(pair)[2])
+    cellExpand <- nvar - 1
+    text_adjustValue <- 1
+    scatter_adjustValue <- 0
+    
+    if (showHistoram) {
+        hist_args <- args
+        hist_args[['showStackedColors']] <- TRUE
+        hist_args[['showOutlines']] <- FALSE
+        histograms <- list()
+        # The first half are top hists, the second half are right hists
+        for(i in 1:(2*nvar)){
+            if (i <= nvar) {
+                hist_args[['x']] <- as.numeric(data[, i])
+                hist_args[['xlabel']] <- varnames[i]
+                # top level histograms  
+                hist_args[['swapAxes']] <- FALSE
+                ix <- 0
+                iy <- i-1
+            } else {
+                hist_args[['x']] <- as.numeric(data[, i - nvar])
+                hist_args[['xlabel']] <- varnames[i - nvar]
+                # right level histograms  
+                hist_args[['swapAxes']] <- TRUE
+                ix <- i - nvar
+                iy <- nvar
+            }
+            histograms[[i]] <- do.call(l_hist, hist_args)
+            names(histograms)[i] <- paste('x',ix,'y',iy, sep='')
+        }
+        # throw errors
+        if (any(sapply(histograms, function(p) {is(p, 'try-error')}))) {
+            if(new.toplevel) tkdestroy(parent)
+            stop("histogram could not be created.")
+        }
+        
+        # resize
+        sapply(histograms, function(h) {
+            tkconfigure(paste(h,'.canvas',sep=''), width=50, height=50)
+        })
+        
+        # grid layout
+        lapply(seq_len(2*nvar), 
+               function(i){
+                   if(i <= nvar) {
+                       tkgrid(histograms[[i]], row = 0, column = (i-1), sticky="nesw") 
+                   } else {
+                       tkgrid(histograms[[i]], row = i - nvar, column = nvar, sticky="nesw") 
+                   }
+               }
+        )
+
+        cellExpand <- nvar
+        text_adjustValue <- 0
+        scatter_adjustValue <- 1
+    }
+
+    if (showSerialAxes) {
+        seriel_args <- args
+        seriel_args[['data']] <- data
+        seriel_args[['showScales']] <- NULL
+        seriel_args[['swapAxes']] <- NULL
+        seriel_args[['axesLayout']] <- "parallel"
+        spaceSpan <- floor(nvar/2)
+        serialAxes <- do.call(l_serialaxes, seriel_args)
+        tkconfigure(paste(serialAxes,'.canvas',sep=''), 
+                    width= spaceSpan * 50, 
+                    height = spaceSpan * 50)
+        tkgrid(serialAxes, 
+               row = cellExpand - spaceSpan + 1, column = 0, 
+               rowspan = spaceSpan, columnspan = spaceSpan,
+               sticky="nesw") 
+    }
+    
+    scatterplots <- vector(mode="list", dim(pair)[2])
+    
     ## create first plot
     for (i in 1:dim(pair)[2]) {
         ix <- pair[2,i]; iy <- pair[1,i]
@@ -83,62 +157,68 @@ l_pairs <- function(data, parent=NULL, ...) {
         args[['y']] <- data[,iy]
         args[['xlabel']] <- varnames[ix]
         args[['ylabel']] <- varnames[iy]
-        plots[[i]] <- do.call(l_plot, args)
-        names(plots)[i] <- paste('x',ix,'y',iy, sep='')
+        scatterplots[[i]] <- do.call(l_plot, args)
+        names(scatterplots)[i] <- paste('x',ix,'y',iy, sep='')
     }
     
-    if (any(sapply(plots, function(p) {is(p, 'try-error')}))) {
+    if (any(sapply(scatterplots, function(p) {is(p, 'try-error')}))) {
         if(new.toplevel) tkdestroy(parent)
         stop("scatterplot matrix could not be created.")
     }
     
     ## resize the min canvas size
-    sapply(plots, function(p) {
+    sapply(scatterplots, function(p) {
                tkconfigure(paste(p,'.canvas',sep=''), width=50, height=50)
            })
-
     ## grid layout
-    apply(rbind(unlist(plots), pair-1), 2, function(col) {
-        tkgrid(col[1], row=col[2], column=col[3], sticky="nesw")
+    apply(rbind(unlist(scatterplots), pair - 1), 2, function(obj) {
+        tkgrid(obj[1], 
+               row= as.numeric(obj[2]) + scatter_adjustValue, 
+               column = as.numeric(obj[3]), 
+               sticky="nesw")
     })
     
     ## Column and Row wheight such that the cells expand
-    for (i in seq(0, nvar-1)) {
+    for (i in seq(0, cellExpand)) {
         tkgrid.columnconfigure(child, i, weight = 1)
         tkgrid.rowconfigure(child, i, weight = 1)
     }
-    
     ## Add Variable Label
     maxchar <- max(sapply(names(data), nchar))
     strf <- paste("%-", maxchar,'s', sep='')
     for (i in 1:nvar) {
         lab <- as.character(tcl('label', as.character(l_subwin(child,'label')),
                                 text= sprintf(strf, names(data)[i])))
-        tkgrid(lab, row = i - 1, column = i - 1)
+        tkgrid(lab, row = i - text_adjustValue, column = i - 1)
     }
     
     if(new.toplevel) {
         tkpack(child, fill="both", expand=TRUE)
     }
 
-    
-    ## Make bindings for synchronizing zoom and pan
     plotsHash <- vector(mode="list", dim(pair)[2])
     for (i in 1:dim(pair)[2]) {
         ix <- pair[2,i]
         iy <- pair[1,i]
-
+        
         tmpX <- which(pair[2,] == ix)
         shareX <- tmpX[tmpX != i]
         
         tmpY <- which(pair[1,] == iy)
         shareY <- tmpY[tmpY != i]
-        
-        plotsHash[[paste("x_",plots[i],sep="")]] <- plots[shareX]
-        plotsHash[[paste("y_",plots[i],sep="")]] <- plots[shareY]
-    } 
-
+        if(showHistoram) {
+            plotsHash[[paste("x_",scatterplots[i],sep="")]] <- c(scatterplots[shareX], histograms[pair[2,i]])
+            plotsHash[[paste("y_",scatterplots[i],sep="")]] <- scatterplots[shareY]
+            plotsHash[[paste("y_hist",scatterplots[i],sep="")]] <- histograms[pair[1,i] + nvar]
+        } else {
+            plotsHash[[paste("x_",scatterplots[i],sep="")]] <- scatterplots[shareX]
+            plotsHash[[paste("y_",scatterplots[i],sep="")]] <- scatterplots[shareY]
+        }
+    }
+    
+    ## Make bindings for scatter synchronizing zoom and pan
     busy <- FALSE
+
     synchronizeBindings <- function(W) {
         #print(paste(W, ', busy', busy))
         if (!busy) {
@@ -149,37 +229,50 @@ l_pairs <- function(data, parent=NULL, ...) {
             deltaX <- W['deltaX']; deltaY <- W['deltaY']
             
             lapply(plotsHash[[paste("x_",W,sep="")]], function(p) {
-                       l_configure(p, zoomX=zoomX, panX=panX, deltaX=deltaX)
-                   })
+                l_configure(p, zoomX=zoomX, panX=panX, deltaX=deltaX)
+            })
             lapply(plotsHash[[paste("y_",W,sep="")]], function(p) {
-                       l_configure(p, zoomY=zoomY, panY=panY, deltaY=deltaY)
-                   })
+                l_configure(p, zoomY=zoomY, panY=panY, deltaY=deltaY)
+            })
+            if (showHistoram) {
+                lapply(plotsHash[[paste("y_hist",W,sep="")]], function(p) {
+                    l_configure(p, zoomX=zoomY, panX=panY, deltaX=deltaY)
+                }) 
+            }
             busy <<- FALSE
             tcl('update', 'idletasks')
             ##assign("busy", FALSE, envir=parent.env(environment()))
         }
-        
-     
     }
     
-    lapply(plots, function(p) {
-               tcl(p, 'systembind', 'state', 'add',
-                   c('zoomX', 'panX', 'zoomY', 'panY', 'deltaX', 'deltaY'),
-                   synchronizeBindings)
-           })
-
-
-    ## forbidden states
-    undoStateChanges <- function(W) {
-        warning("showLabels, showScales, and swapAxes can not be changed for scatterplot matrix.")
-        l_configure(W, showLabels=FALSE, showScales=FALSE, swapAxes=FALSE)
-    }
-    lapply(plots, function(p) {
+    lapply(scatterplots, function(p) {
+        tcl(p, 'systembind', 'state', 'add',
+            c('zoomX', 'panX', 'zoomY', 'panY', 'deltaX', 'deltaY'),
+            synchronizeBindings)
+    })
+        
+    # forbidden scatter plots
+    lapply(scatterplots, function(p) {
                tcl(p, 'systembind', 'state', 'add',
                    c('showLabels', 'showScales', 'swapAxes'),
                    undoStateChanges)
            })
 
+    plots <- scatterplots
+    if (showHistoram) {
+        # forbidden histogram states (both top and right)
+        lapply(histograms, function(h) {
+            tcl(h, 'systembind', 'state', 'add',
+                c('showLabels', 'showScales', 'swapAxes'),
+                undoStateChanges)
+        })
+        
+        plots<- c(plots, histograms)
+    }
+    if(showSerialAxes) {
+        plots <- c(plots, list(serialAxes = serialAxes))
+    }
+    
     ## beware undoStateChanges and synchronizeBindings from garbage collector
     callbackFunctions$state[[paste(child,"synchronize", sep="_")]] <- synchronizeBindings
     callbackFunctions$state[[paste(child,"undo", sep="_")]] <- undoStateChanges
@@ -238,3 +331,8 @@ l_configure.l_pairs <- function(target, ...) {
     target
 }
 
+## forbidden states
+undoStateChanges <- function(W) {
+    warning("showLabels, showScales, and swapAxes can not be changed for scatterplot matrix.")
+    l_configure(W, showLabels=FALSE, showScales=FALSE, swapAxes=FALSE)
+}
