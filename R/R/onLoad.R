@@ -8,29 +8,33 @@
 #' @import tcltk
 .onLoad <- function(libname, pkgname) {
 
-    if (as.character(tcl('set', 'tcl_version'))!="8.6") {
-        stop("Tcl version 8.6 required.")
-        ## tclRequire('TclOO') > done by pkgIndex.tcl
-        ## .Tcl("
-        ##      proc lmap {_var list body} {
-        ##          upvar 1 $_var var
-        ##          set res {}
-        ##          foreach var $list {lappend res [uplevel 1 $body]}
-        ##          set res
-        ##      }
-        ##")
-    }
+    # if (as.character(tcl('set', 'tcl_version'))!="8.6") {
+    #     stop("Tcl version 8.6 required.")
+    #     ## tclRequire('TclOO') > done by pkgIndex.tcl
+    #     ## .Tcl("
+    #     ##      proc lmap {_var list body} {
+    #     ##          upvar 1 $_var var
+    #     ##          set res {}
+    #     ##          foreach var $list {lappend res [uplevel 1 $body]}
+    #     ##          set res
+    #     ##      }
+    #     ##")
+    # }
     version <- as.character(tcltk::tclVersion())
     major <- as.integer(strsplit(version, "\\.")[[1]][1])
     minor <- as.integer(strsplit(version, "\\.")[[1]][2])
 
-    if (!(major == 8 && minor >= 6)) {
-        stop(sprintf("Tcl version 8.6 required; found %s", version), call. = FALSE)
+    if ((major == 8) && (minor < 6)) {
+        stop(sprintf("Tcl version >= 8.6 required; found %s", version), call. = FALSE)
     }
 
-    if (major >= 9) {
-        stop(sprintf("Tcl version < 9.0 required; found %s; Tcl version >= 9.0 coming", version), call. = FALSE)
-    }
+    # if (!(major == 8 && minor >= 6)) {
+    #     stop(sprintf("Tcl version 8.6 required; found %s", version), call. = FALSE)
+    # }
+    #
+    # if (major >= 9) {
+    #     stop(sprintf("Tcl version < 9.0 required; found %s; Tcl version >= 9.0 coming", version), call. = FALSE)
+    # }
 
 
     ## Load Tcl package

@@ -1,3 +1,8 @@
+# loon 1.4.3
+
+* allowing Tcl/Tk >= 8.6  (i.e. including 9.0.1)
+
+
 # loon 1.4.2
 
 Addresses minor documentation issues:
